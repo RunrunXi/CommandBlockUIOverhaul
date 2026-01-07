@@ -2,6 +2,7 @@ package me.cyanhana.commandblockuioverhaul.ui;
 
 import me.cyanhana.commandblockuioverhaul.mixin.EditBoxAccessor;
 import net.minecraft.SharedConstants;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -42,6 +43,14 @@ public class ModMultiLineEditBox extends EditBox {
 
     }
 
+    private int getHighlightPosition() {
+        return accessor.getHighlightPos();
+    }
+
+    private Font getFont() {
+        return accessor.getFont();
+    }
+
     @Override
     public void setValue(@NotNull String text) {
         super.setValue(text);
@@ -51,8 +60,8 @@ public class ModMultiLineEditBox extends EditBox {
     }
     @Override
     public void insertText(@NotNull String pTextToWrite) {
-        int i = Math.min(this.getCursorPosition(), accessor.getHighlightPos());
-        int j = Math.max(this.getCursorPosition(), accessor.getHighlightPos());
+        int i = Math.min(this.getCursorPosition(), this.getHighlightPosition());
+        int j = Math.max(this.getCursorPosition(), this.getHighlightPosition());
         int k = this.maxLength - this.getValue().length() - (i - j);
         String s = SharedConstants.filterText(pTextToWrite);
         int l = s.length();
@@ -88,7 +97,7 @@ public class ModMultiLineEditBox extends EditBox {
     @Override
     public void deleteChars(int pNum) {
         if (!this.getValue().isEmpty()) {
-            if (accessor.getHighlightPos() != this.getCursorPosition()) {
+            if (this.getHighlightPosition() != this.getCursorPosition()) {
                 this.insertText("");
             } else {
                 int i = accessor.invokeGetCursorPos(pNum);
@@ -154,7 +163,7 @@ public class ModMultiLineEditBox extends EditBox {
                         // Page Down
 //                        System.out.println("267");
                     default:
-                        System.out.println("default false");
+//                        System.out.println("default false");
                         return false;
                     case 261:
                         // Delete
@@ -292,7 +301,7 @@ public class ModMultiLineEditBox extends EditBox {
             currentLine.append(c);
 
             // 检查宽度是否超过文本框的五分之四
-            if (accessor.getFont().width(currentLine.toString()) > innerWidth * 4 / 5) {
+            if (this.getFont().width(currentLine.toString()) > innerWidth * 4 / 5) {
                 // 找到合适的换行点
                 int breakPoint = findBreakPoint(currentLine.toString());
 
@@ -373,104 +382,107 @@ public class ModMultiLineEditBox extends EditBox {
         // 颜色与文字坐标
         int textColor = accessor.getIsEditable() ? accessor.getTextColor() : accessor.getTextColorUneditable();
         int baseX = accessor.getBordered() ? this.getX() + 4 : this.getX();
-        int baseY = accessor.getBordered() ? this.getY() + (this.height - 8) / 2 : this.getY();
+        int baseY = accessor.getBordered() ? this.getY() + 4 : this.getY();
+        int cursorPos = this.getCursorPosition();
+        int highlightPos = this.getHighlightPosition();
 
         // 计算渲染区域
         int startLine = scrolledLines;
         int endLine = Math.min(scrolledLines + visibleLines, lines.size());
-        int x; // 左边距
-        int y = this.getY() + 4; // 顶部边距
+        int currentX; // 左边距
+        int currentY = baseY; // 顶部边距
+
+        // 高亮渲染
+        int[] cursorXY = getGlobalPosXY(cursorPos);
+        int[] highlightXY = getGlobalPosXY(highlightPos);
+        int startHighlightLine = Math.min(cursorXY[0], highlightXY[0]);
+        int endHighlightLine = Math.max(cursorXY[0], highlightXY[0]);
+        int startHighlightChar = Math.min(cursorXY[1], highlightXY[1]);
+        int endHighlightChar = Math.max(cursorXY[1], highlightXY[1]);
 
         // 渲染可视范围内的每一行
         for (int i = startLine; i < endLine; i++) {
             String line = lines.get(i);
             // x 初始位置
-            x = accessor.getBordered() ? this.getX() + 4 : this.getX();
+            currentX = baseX;
             // 当前行已输入的字符宽度
-            int lineWidth = accessor.getFont().width(line);
+            int lineWidth = this.getFont().width(line);
             // 根据缩进级别添加缩进空格
             int indent = indentLevels.get(i);
+            int indentWidth = indent * indentation * this.getFont().width(" ");
             if (indent > 0) {
-                String spaces = " ".repeat(indentation).repeat(indent);
-                x = spaces.length() * accessor.getFont().width(" ") + x;
+                currentX = indentWidth + currentX;
             }
-            boolean isCursorBetweenLine = this.getCursorPosition() < this.getValue().length() || this.getValue().length() >= this.maxLength;
+            boolean isCursorBetweenLine = cursorPos < this.getValue().length() || this.getValue().length() >= this.maxLength;
+            // 绘制行
+            guiGraphics.drawString(this.getFont(), line, currentX, currentY, textColor);
             // 绘制命令建议
             if (!isCursorBetweenLine && accessor.getSuggestion() != null) {
-                guiGraphics.drawString(accessor.getFont(), accessor.getSuggestion(), x + lineWidth, y, -8355712);
+                guiGraphics.drawString(this.getFont(), accessor.getSuggestion(), currentX + lineWidth, currentY, -8355712);
             }
-            // 绘制行
-            guiGraphics.drawString(accessor.getFont(), line, x, y, textColor);
             // 绘制光标
             // 如果聚焦且光标可见
             if (this.isFocused() && accessor.getFrame() / 6 % 2 == 0) {
                 // 如果光标不在末尾或已达最大长度(需要显示为竖线的情况)
                 if (isCursorBetweenLine) {
                     if (i == cursorLine) {
-                        int offsetX = accessor.getFont().width(line.substring(0, Math.min(cursorIndexInLine, line.length())));
-                        guiGraphics.fill(RenderType.guiOverlay(), x + offsetX, y - 1, x + 1 + offsetX, y + 1 + 9, -3092272);
+                        int offsetX = this.getFont().width(line.substring(0, Math.min(cursorIndexInLine, line.length())));
+                        guiGraphics.fill(RenderType.guiOverlay(), currentX + offsetX, currentY - 1, currentX + 1 + offsetX, currentY + 1 + 9, -3092272);
                     }
                 } else if (i == lines.size() - 1) {
-                    guiGraphics.drawString(accessor.getFont(), "_", x + lineWidth, y, textColor);
+                    guiGraphics.drawString(this.getFont(), "_", currentX + lineWidth, currentY, textColor);
+                }
+            }
+            // 绘制高亮
+            if (highlightPos != cursorPos) {
+                // 计算该行的起始和结束位置
+                int lineStartX = baseX + indentWidth;
+                int highlightStartX = lineStartX + this.getFont().width(line.substring(0, Math.min(startHighlightChar, line.length())));
+                int highlightEndX = lineStartX + this.getFont().width(line.substring(0, Math.min(endHighlightChar, line.length())));
+                // 只有一行时
+                if (i == startHighlightLine && i == endHighlightLine) {
+                    renderHighlight(guiGraphics, highlightStartX, currentY - 1, highlightEndX, currentY + 1 + 9);
+                } else if (i >= startHighlightLine && i <= endHighlightLine) {
+                    // 多行高亮
+                    if (i == startHighlightLine) {
+                        renderHighlight(guiGraphics, highlightStartX, currentY - 1, baseX + this.width - 6, currentY + 1 + 9);
+                    } else if (i == endHighlightLine) {
+                        renderHighlight(guiGraphics, baseX - 2, currentY - 1, highlightEndX, currentY + 1 + 9);
+                    } else {
+                        // 渲染中间完整行
+                        renderHighlight(guiGraphics, baseX - 2, currentY - 1, baseX + this.width - 6, currentY + 1 + 9);
+                    }
                 }
             }
 
             // 计算下一行的坐标
-            y += lineHeight;
+            currentY += lineHeight;
         }
 
+    }
 
-        // j 是当前光标位置在当前显示范围内的偏移量，比如当前光标在第 5 行，第 3 个字符，j = 2；
-        // 光标位置
-//        int cursorPos = this.getCursorPosition() - this.displayPos;
-//        int highlightPos = this.highlightPos - this.displayPos;
-//        // 文本行
-//        String s = accessor.getFont().plainSubstrByWidth(this.value.substring(this.displayPos), this.getInnerWidth());
-//        boolean isCursorVisible = this.getCursorPosition() >= 0 && this.getCursorPosition() <= s.length();
-//        int i1 = accessor.getBordered() ? this.getY() + (this.height - 8) / 2 : this.getY();
-//        int j1 = x;
-//        if (highlightPos > s.length()) {
-//            highlightPos = s.length();
-//        }
-        // 渲染文本
-//        if (!s.isEmpty()) {
-//            String s1 = isCursorVisible ? s.substring(0, cursorPos) : s;
-//            j1 = guiGraphics.drawString(this.font, this.formatter.apply(s1, this.displayPos), l, i1, textColor);
-//        }
+    private void renderHighlight(GuiGraphics guiGraphics, int minX, int minY, int maxX, int maxY) {
+        if (minX < maxX) {
+            int i = minX;
+            minX = maxX;
+            maxX = i;
+        }
 
-//        boolean flag2 = this.getCursorPosition() < this.getValue().length() || this.getValue().length() >= accessor.getMaxLength();
-//        int k1 = y;
-//        if (!isCursorVisible) {
-//            k1 = this.getCursorPosition() > 0 ? x + this.width : x;
-//        } else if (flag2) {
-//            k1 = y - 1;
-//            --y;
-//        }
-//
-//        if (!s.isEmpty() && isCursorVisible && cursorPos < s.length()) {
-//            guiGraphics.drawString(this.font, this.formatter.apply(s.substring(cursorPos), this.cursorPos), j1, i1, textColor);
-//        }
-//
-//        if (this.hint != null && s.isEmpty() && !this.isFocused()) {
-//            guiGraphics.drawString(this.font, this.hint, j1, i1, textColor);
-//        }
-//
-//        if (!flag2 && this.suggestion != null) {
-//            guiGraphics.drawString(this.font, this.suggestion, k1 - 1, i1, -8355712);
-//        }
-                // 绘制光标
-//        if (this.isFocused() && accessor.getFrame() / 6 % 2 == 0 && isCursorVisible) {
-//            if (flag2) {
-//                guiGraphics.fill(RenderType.guiOverlay(), k1, i1 - 1, k1 + 1, i1 + 1 + 9, -3092272);
-//            } else {
-//                guiGraphics.drawString(accessor.getFont(), "_", k1, i1, textColor);
-//            }
-//        }
+        if (minY < maxY) {
+            int j = minY;
+            minY = maxY;
+            maxY = j;
+        }
 
-//        if (highlightPos != this.getCursorPosition()) {
-//            int l1 = x + accessor.getFont().width(s.substring(0, highlightPos));
-//            this.renderHighlight(guiGraphics, k1, i1 - 1, l1 - 1, i1 + 1 + 9);
-//        }
+        if (maxX > this.getX() + this.width) {
+            maxX = this.getX() + this.width;
+        }
+
+        if (minX > this.getX() + this.width) {
+            minX = this.getX() + this.width;
+        }
+
+        guiGraphics.fill(RenderType.guiTextHighlight(), minX, minY, maxX, maxY, -16776961);
     }
 
     // 鼠标点击事件
@@ -479,6 +491,7 @@ public class ModMultiLineEditBox extends EditBox {
         if (!this.isVisible() || !this.isMouseOver(mouseX, mouseY)) {
             return;
         }
+        this.shiftPressed = Screen.hasShiftDown();
 
         // 计算点击的行
         int relativeY = (int) mouseY - this.getY();
@@ -495,12 +508,12 @@ public class ModMultiLineEditBox extends EditBox {
             // 计算缩进宽度
             if (indent > 0) {
                 String spaces = " ".repeat(indentation).repeat(indent);
-                accumulatedWidth = spaces.length() * accessor.getFont().width(" ");
+                accumulatedWidth = spaces.length() * this.getFont().width(" ");
             }
             for (int i = 0; i < line.length(); i++) {
                 char c = line.charAt(i);
                 // 计算字符宽度
-                accumulatedWidth += accessor.getFont().width(String.valueOf(c));
+                accumulatedWidth += this.getFont().width(String.valueOf(c));
 
                 if (accumulatedWidth > relativeX) {
 //                    System.out.println("char " + c);
@@ -529,19 +542,19 @@ public class ModMultiLineEditBox extends EditBox {
         return index + Math.min(charInLine, lines.get(lineIndex).length());
     }
 
-    private int[] getCursorXY() {
-        int[] pos = new int[2];
+    private int[] getGlobalPosXY(int globalPos) {
+        int[] returnPos = new int[2];
         int lineIndex = 0;
         int charCount = 0;
-        int cursorIndex = this.getCursorPosition();
+//        int cursorIndex = this.getCursorPosition();
         // 计算光标位置在哪一行
         for (String line : lines) {
-            if (charCount + line.length() >= cursorIndex) {
+            if (charCount + line.length() >= globalPos) {
                 // 计算光标位置在这一行的哪个位置
                 for (int i = 0; i <= line.length(); i++) {
-                    if (charCount + i == cursorIndex) {
-                        System.out.println("charCount: " + charCount + " i: " + i);
-                        pos[1] = i;
+                    if (charCount + i == globalPos) {
+//                        System.out.println("charCount: " + charCount + " i: " + i);
+                        returnPos[1] = i;
                         if (i == 47) System.out.println(line);
                         break;
                     }
@@ -552,9 +565,9 @@ public class ModMultiLineEditBox extends EditBox {
                 lineIndex++;
             }
         }
-        pos[0] = lineIndex;
+        returnPos[0] = lineIndex;
 
-        return pos;
+        return returnPos;
     }
 
     @Override
@@ -574,13 +587,24 @@ public class ModMultiLineEditBox extends EditBox {
     public void setCursorPosition(int pPos) {
         accessor.setCursorPos(Mth.clamp(pPos, 0, this.getValue().length()));
 
-        int[] cursorXY = getCursorXY();
+        int[] cursorXY = getGlobalPosXY(pPos);
         cursorLine = cursorXY[0];
         cursorIndexInLine = cursorXY[1];
     }
 
+    private int getCursorPos(int pDelta) {
+        return Util.offsetByCodepoints(this.getValue(), this.getCursorPosition(), pDelta);
+    }
+
+    @Override
+    public void moveCursor(int pDelta) {
+        this.moveCursorTo(this.getCursorPos(pDelta));
+    }
+
     @Override
     public void moveCursorTo(int pPos) {
+//        System.out.println("moveCursorTo " + pPos);
+//        System.out.println("shiftPressed " + this.shiftPressed);
         this.setCursorPosition(pPos);
         if (!this.shiftPressed) {
             this.setHighlightPos(this.getCursorPosition());
@@ -589,7 +613,7 @@ public class ModMultiLineEditBox extends EditBox {
     }
 
     public void moveCursorVertical(int direction) {
-        int[] cursorXY = getCursorXY();
+        int[] cursorXY = getGlobalPosXY(this.getCursorPosition());
         int lineIndex;
         int charIndexInLine;
 
