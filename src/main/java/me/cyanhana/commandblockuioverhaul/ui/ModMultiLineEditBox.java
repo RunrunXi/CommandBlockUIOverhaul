@@ -27,6 +27,9 @@ import java.util.function.Predicate;
 
 public class ModMultiLineEditBox extends EditBox {
     private final EditBoxAccessor accessor = (EditBoxAccessor) this;
+    private ModCommandSuggestions suggestions;
+    private boolean hasSuggestions = false;
+    // 主要属性
     private String value = "";
     private final Font font;
     private Consumer<String> responder;
@@ -42,6 +45,7 @@ public class ModMultiLineEditBox extends EditBox {
     // 多行文本管理
     private final List<String> lines = new LinkedList<>();
     private final List<Integer> indentLevels = new ArrayList<>();
+    private final List<FormattedCharSequence> formattedLines = new ArrayList<>();
     private int visibleLines = 10;     // 可视行数
     private int scrolledLines = 0;     // 已滚动行数
     private int maxLength;
@@ -63,7 +67,19 @@ public class ModMultiLineEditBox extends EditBox {
         // 计算可视行数
         lineHeight = pFont.lineHeight + 2; // 字体高度 + 间距
         visibleLines = pHeight / lineHeight;
+        // 让命令提示框初始不显示(在屏幕外面就不显示了)
+        cursorX = width * 2;
+    }
 
+    public void setCommandSuggestions(ModCommandSuggestions suggestions) {
+        this.suggestions = suggestions;
+        this.hasSuggestions = true;
+    }
+
+    private void updateSuggestions() {
+        if (hasSuggestions) {
+            suggestions.updateCommandInfo();
+        }
     }
 
     @Override
@@ -335,6 +351,7 @@ public class ModMultiLineEditBox extends EditBox {
     private void formatText(String text) {
         lines.clear();
         indentLevels.clear();
+        formattedLines.clear();
 
         int innerWidth = this.getInnerWidth();
 
@@ -448,6 +465,25 @@ public class ModMultiLineEditBox extends EditBox {
             indentLevels.add(0);
         }
 
+        this.updateSuggestions();
+
+        int charCount = 0;
+        // 在处理每一行时，同时生成格式化版本
+        for (String line : lines) {
+            // 使用格式化器处理这一行
+            FormattedCharSequence formattedLine;
+            if (formatter != null) {
+                // maxLength参数：通常是行的显示宽度
+                formattedLine = formatter.apply(line, charCount);
+            } else {
+                // 默认格式化（无颜色）
+                formattedLine = FormattedCharSequence.forward(line, Style.EMPTY);
+            }
+
+            formattedLines.add(formattedLine);
+            charCount += line.length();
+        }
+
     }
 
     /**
@@ -526,7 +562,8 @@ public class ModMultiLineEditBox extends EditBox {
             }
             boolean isCursorBetweenLine = cursorPos < this.getValue().length() || this.getValue().length() >= this.maxLength;
             // 绘制行
-            guiGraphics.drawString(this.font, line, currentX, currentY, textColor);
+            renderColoredLine(guiGraphics, line, currentX, currentY, textColor, i);
+//            guiGraphics.drawString(this.font, line, currentX, currentY, textColor);
             // 绘制命令建议
             if (!isCursorBetweenLine && this.suggestion != null && i == cursorLine) {
                 guiGraphics.drawString(this.font, this.suggestion, currentX + lineWidth, currentY, -8355712);
@@ -570,6 +607,18 @@ public class ModMultiLineEditBox extends EditBox {
             currentY += lineHeight;
         }
 
+    }
+
+    private void renderColoredLine(GuiGraphics guiGraphics, String text, int x, int y, int color, int lineIndex) {
+        // 检查是否有格式化版本
+        if (lineIndex >= 0 && lineIndex < formattedLines.size()) {
+            FormattedCharSequence formattedText = formattedLines.get(lineIndex);
+            // 使用 drawString 的 FormattedCharSequence 版本
+            guiGraphics.drawString(this.font, formattedText, x, y, color);
+        } else {
+            // 回退：使用普通文本渲染
+            guiGraphics.drawString(this.font, text, x, y, color);
+        }
     }
 
     private void renderHighlight(GuiGraphics guiGraphics, int minX, int minY, int maxX, int maxY) {

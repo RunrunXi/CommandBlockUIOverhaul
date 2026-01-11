@@ -90,6 +90,7 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
                 this.font, true, true, 0, 7, false, Integer.MIN_VALUE);
         this.commandSuggestions.setAllowSuggestions(true);
         this.commandSuggestions.updateCommandInfo();
+        this.commandEdit.setCommandSuggestions(this.commandSuggestions);
         // 初始化输出框
         this.updatePreviousOutput(flag);
     }
