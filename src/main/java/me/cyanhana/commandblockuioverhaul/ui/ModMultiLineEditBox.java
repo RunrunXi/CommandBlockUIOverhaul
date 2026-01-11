@@ -161,6 +161,8 @@ public class ModMultiLineEditBox extends EditBox {
             this.setHighlightPos(this.getCursorPosition());
             this.onValueChange(text);
 
+            // 格式化文本的颜色
+            formatColoredText();
         }
     }
 
@@ -465,8 +467,9 @@ public class ModMultiLineEditBox extends EditBox {
             indentLevels.add(0);
         }
 
-        this.updateSuggestions();
+    }
 
+    private void formatColoredText() {
         int charCount = 0;
         // 在处理每一行时，同时生成格式化版本
         for (String line : lines) {
@@ -483,7 +486,6 @@ public class ModMultiLineEditBox extends EditBox {
             formattedLines.add(formattedLine);
             charCount += line.length();
         }
-
     }
 
     /**
