@@ -546,8 +546,6 @@ public class ModMultiLineEditBox extends EditBox {
         int[] highlightXY = getGlobalPosXY(highlightPos);
         int startHighlightLine = Math.min(cursorXY[0], highlightXY[0]);
         int endHighlightLine = Math.max(cursorXY[0], highlightXY[0]);
-        int startHighlightChar = Math.min(cursorXY[1], highlightXY[1]);
-        int endHighlightChar = Math.max(cursorXY[1], highlightXY[1]);
 
         // 渲染可视范围内的每一行
         for (int i = startLine; i < endLine; i++) {
@@ -584,24 +582,30 @@ public class ModMultiLineEditBox extends EditBox {
                 }
             }
             // 绘制高亮
-            if (highlightPos != cursorPos) {
-                // 计算该行的起始和结束位置
+            if (highlightPos != cursorPos && i >= startHighlightLine && i <= endHighlightLine) {
+                // 计算渲染位置
+                boolean isForwardSelection = cursorXY[0] > highlightXY[0]; // 正向选择
                 int lineStartX = baseX + indentWidth;
-                int highlightStartX = lineStartX + this.font.width(line.substring(0, Math.min(startHighlightChar, line.length())));
-                int highlightEndX = lineStartX + this.font.width(line.substring(0, Math.min(endHighlightChar, line.length())));
-                // 只有一行时
+                int hCursorX = lineStartX + this.font.width(line.substring(0, Math.min(cursorXY[1], line.length())));
+                int hHighlightX = lineStartX + this.font.width(line.substring(0, Math.min(highlightXY[1], line.length())));
+                // 根据情况渲染
                 if (i == startHighlightLine && i == endHighlightLine) {
-                    renderHighlight(guiGraphics, highlightStartX, currentY - 1, highlightEndX, currentY + 1 + 9);
-                } else if (i >= startHighlightLine && i <= endHighlightLine) {
-                    // 多行高亮
-                    if (i == startHighlightLine) {
-                        renderHighlight(guiGraphics, highlightStartX, currentY - 1, baseX + this.width - 6, currentY + 1 + 9);
-                    } else if (i == endHighlightLine) {
-                        renderHighlight(guiGraphics, baseX - 2, currentY - 1, highlightEndX, currentY + 1 + 9);
-                    } else {
-                        // 渲染中间完整行
-                        renderHighlight(guiGraphics, baseX - 2, currentY - 1, baseX + this.width - 6, currentY + 1 + 9);
-                    }
+                    // 只有一行时
+                    int startX = cursorXY[1] > highlightXY[1] ? hHighlightX : hCursorX;
+                    int endX = cursorXY[1] > highlightXY[1] ? hCursorX : hHighlightX;
+                    renderHighlight(guiGraphics, startX, currentY - 1, endX, currentY + 1 + 9);
+                } else if (i == startHighlightLine) {
+                    // 起始行：从选择起点到行尾
+                    int startX = isForwardSelection ? hHighlightX : hCursorX;
+                    renderHighlight(guiGraphics, startX, currentY - 1, baseX + this.width - 6, currentY + 1 + 9);
+                }
+                else if (i == endHighlightLine) {
+                    // 结束行：从行首到选择终点
+                    int endX = isForwardSelection ? hCursorX : hHighlightX;
+                    renderHighlight(guiGraphics, baseX - 2, currentY - 1, endX, currentY + 1 + 9);
+                } else {
+                    // 渲染中间完整行
+                    renderHighlight(guiGraphics, baseX - 2, currentY - 1, baseX + this.width - 6, currentY + 1 + 9);
                 }
             }
 
@@ -663,7 +667,7 @@ public class ModMultiLineEditBox extends EditBox {
             String line = lines.get(clickedLine);
 
             // 计算点击的字符位置
-            int relativeX = (int) mouseX - (this.getX() + (this.isBordered() ? 4 : 0));
+            int relativeX = Mth.floor(mouseX) - (this.getX() + (this.isBordered() ? 4 : 0));
             int charIndex = 0;
             int accumulatedWidth = 0;
             int indent = indentLevels.get(clickedLine);
