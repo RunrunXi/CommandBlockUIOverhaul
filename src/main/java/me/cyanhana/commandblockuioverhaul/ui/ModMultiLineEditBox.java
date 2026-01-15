@@ -100,8 +100,8 @@ public class ModMultiLineEditBox extends EditBox {
 
     @Override
     public @NotNull String getHighlighted() {
-        int i = Math.min(this.getCursorPosition(), this.highlightPos);
-        int j = Math.max(this.getCursorPosition(), this.highlightPos);
+        int i = Math.min(this.cursorPos, this.highlightPos);
+        int j = Math.max(this.cursorPos, this.highlightPos);
         return this.value.substring(i, j);
     }
 
@@ -158,7 +158,7 @@ public class ModMultiLineEditBox extends EditBox {
             formatText(text);
 
             this.moveCursorToEnd();
-            this.setHighlightPos(this.getCursorPosition());
+            this.setHighlightPos(this.cursorPos);
             this.onValueChange(text);
 
             // 格式化文本的颜色
@@ -168,8 +168,8 @@ public class ModMultiLineEditBox extends EditBox {
 
     @Override
     public void insertText(@NotNull String pTextToWrite) {
-        int i = Math.min(this.getCursorPosition(), this.highlightPos);
-        int j = Math.max(this.getCursorPosition(), this.highlightPos);
+        int i = Math.min(this.cursorPos, this.highlightPos);
+        int j = Math.max(this.cursorPos, this.highlightPos);
         int k = this.maxLength - this.getValue().length() - (i - j);
         String s = SharedConstants.filterText(pTextToWrite);
         int l = s.length();
@@ -182,7 +182,7 @@ public class ModMultiLineEditBox extends EditBox {
         if (this.filter.test(s1)) {
             this.setValue(s1);
             this.setCursorPosition(i + l);
-            this.setHighlightPos(this.getCursorPosition());
+            this.setHighlightPos(this.cursorPos);
             this.onValueChange(this.getValue());
         }
     }
@@ -215,10 +215,10 @@ public class ModMultiLineEditBox extends EditBox {
     @Override
     public void deleteWords(int pNum) {
         if (!this.value.isEmpty()) {
-            if (this.highlightPos != this.getCursorPosition()) {
+            if (this.highlightPos != this.cursorPos) {
                 this.insertText("");
             } else {
-                this.deleteChars(this.getWordPosition(pNum) - this.getCursorPosition());
+                this.deleteChars(this.getWordPosition(pNum) - this.cursorPos);
             }
         }
     }
@@ -226,12 +226,12 @@ public class ModMultiLineEditBox extends EditBox {
     @Override
     public void deleteChars(int pNum) {
         if (!this.getValue().isEmpty()) {
-            if (this.highlightPos != this.getCursorPosition()) {
+            if (this.highlightPos != this.cursorPos) {
                 this.insertText("");
             } else {
                 int i = this.getCursorPos(pNum);
-                int j = Math.min(i, this.getCursorPosition());
-                int k = Math.max(i, this.getCursorPosition());
+                int j = Math.min(i, this.cursorPos);
+                int k = Math.max(i, this.cursorPos);
                 if (j != k) {
                     String s = (new StringBuilder(this.getValue())).delete(j, k).toString();
                     if (this.filter.test(s)) {
@@ -532,7 +532,6 @@ public class ModMultiLineEditBox extends EditBox {
         int textColor = accessor.getIsEditable() ? accessor.getTextColor() : accessor.getTextColorUneditable();
         int baseX = this.isBordered() ? this.getX() + 4 : this.getX();
         int baseY = this.isBordered() ? this.getY() + 4 : this.getY();
-        int cursorPos = this.getCursorPosition();
         int highlightPos = this.highlightPos;
 
         // 计算渲染区域
@@ -542,7 +541,7 @@ public class ModMultiLineEditBox extends EditBox {
         int currentY = baseY; // 顶部边距
 
         // 高亮渲染
-        int[] cursorXY = getGlobalPosXY(cursorPos);
+        int[] cursorXY = getGlobalPosXY(this.cursorPos);
         int[] highlightXY = getGlobalPosXY(highlightPos);
         int startHighlightLine = Math.min(cursorXY[0], highlightXY[0]);
         int endHighlightLine = Math.max(cursorXY[0], highlightXY[0]);
@@ -560,7 +559,7 @@ public class ModMultiLineEditBox extends EditBox {
             if (indent > 0) {
                 currentX = indentWidth + currentX;
             }
-            boolean isCursorBetweenLine = cursorPos < this.getValue().length() || this.getValue().length() >= this.maxLength;
+            boolean isCursorBetweenLine = this.cursorPos < this.getValue().length() || this.getValue().length() >= this.maxLength;
             // 绘制行
             renderColoredLine(guiGraphics, line, currentX, currentY, textColor, i);
 //            guiGraphics.drawString(this.font, line, currentX, currentY, textColor);
@@ -582,7 +581,7 @@ public class ModMultiLineEditBox extends EditBox {
                 }
             }
             // 绘制高亮
-            if (highlightPos != cursorPos && i >= startHighlightLine && i <= endHighlightLine) {
+            if (highlightPos != this.cursorPos && i >= startHighlightLine && i <= endHighlightLine) {
                 // 计算渲染位置
                 boolean isForwardSelection = cursorXY[0] > highlightXY[0]; // 正向选择
                 int lineStartX = baseX + indentWidth;
@@ -712,7 +711,6 @@ public class ModMultiLineEditBox extends EditBox {
         int[] returnPos = new int[2];
         int lineIndex = 0;
         int charCount = 0;
-//        int cursorIndex = this.getCursorPosition();
         // 计算光标位置在哪一行
         for (String line : lines) {
             if (charCount + line.length() >= globalPos) {
@@ -767,7 +765,7 @@ public class ModMultiLineEditBox extends EditBox {
     }
 
     private int getCursorPos(int pDelta) {
-        return Util.offsetByCodepoints(this.getValue(), this.getCursorPosition(), pDelta);
+        return Util.offsetByCodepoints(this.getValue(), this.cursorPos, pDelta);
     }
 
     @Override
@@ -781,13 +779,13 @@ public class ModMultiLineEditBox extends EditBox {
 //        System.out.println("shiftPressed " + this.shiftPressed);
         this.setCursorPosition(pPos);
         if (!this.shiftPressed) {
-            this.setHighlightPos(this.getCursorPosition());
+            this.setHighlightPos(this.cursorPos);
         }
         this.onValueChange(this.getValue());
     }
 
     public void moveCursorVertical(int direction) {
-        int[] cursorXY = getGlobalPosXY(this.getCursorPosition());
+        int[] cursorXY = getGlobalPosXY(this.cursorPos);
         int lineIndex;
         int charIndexInLine;
 
