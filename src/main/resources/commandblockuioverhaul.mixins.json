@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "me.cyanhana.commandblockuioverhaul.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "LocalPlayerMixin",
+    "ClientPacketListenerMixin",
+    "EditBoxAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
