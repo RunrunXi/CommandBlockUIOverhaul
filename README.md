@@ -1,45 +1,62 @@
-# CommandBlockUIOverhaul — Minecraft 1.21.1
+# CommandBlockUIOverhaul - 命令方块界面重构
 
-这是 1.20.1 版本的 NeoForge 迁移版。原项目未修改。
+<p align="center">
+  <strong>为 Minecraft 1.21.1 的命令方块带来现代化多行编辑体验</strong><br>
+  <span>告别单行文本框，使用结构清晰、可补全的命令编辑器</span>
+</p>
 
-## 环境与构建
+<p align="center">
+  <img src="https://img.shields.io/badge/Minecraft-1.21.1-blue?style=flat-square&logo=minecraft" alt="Minecraft 1.21.1">
+  <img src="https://img.shields.io/badge/Loader-NeoForge-orange?style=flat-square&logo=curseforge" alt="NeoForge">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT License">
+</p>
 
-- Minecraft 1.21.1
-- NeoForge 21.1.252 或更新的 21.1.x
-- JDK 21
-- 构建：Windows 下运行 .\gradlew.bat build
-- 开发客户端：.\gradlew.bat runClient
-- 成品：build/libs/commandblockuioverhaul-1.0.1+mc1.21.1.jar
+## 模组简介
 
-将 JAR 放到 NeoForge 1.21.1 客户端的 mods 文件夹。界面替换仅在客户端启用；服务端沿用原版命令方块同步数据包。
+**命令方块界面重构（CommandBlockUIOverhaul）** 是一个面向 NeoForge 1.21.1 的轻量客户端模组。它将原版命令方块和命令方块矿车的单行输入框改造成宽敞的多行编辑器，同时保留原版命令方块的数据包和交互方式。
 
-## 迁移内容
+模组只改变客户端的编辑界面与输入体验，不修改命令语法，也不要求服务端安装同一个模组。命令仍通过 Minecraft 原版协议发送和同步。
 
-- 保留多行命令编辑、格式化、语法着色、补全、输出显示和命令方块模式设置。
-- 命令方块与命令方块矿车通过 LocalPlayer 的客户端入口打开新界面。
-- 适配 1.21.1 的字符过滤、光标移动、毫秒制光标闪烁、双轴滚轮和背景绘制 API。
-- 使用 Java 21 Mixin 配置和 NeoForge 模组元数据。
-- 数据更新只刷新当前正在编辑的命令方块，避免其他方块数据包覆盖输入。
-- 移除模板示例物品、方块和创造模式分类的注册。
+## 核心特性
 
-## 轻量编辑功能
+| 功能 | 描述 |
+| --- | --- |
+| **智能多行排版** | 根据命令结构自动换行，并对括号层级进行缩进 |
+| **命令语法着色** | 使用 Brigadier 解析结果区分字面量、参数和错误文本 |
+| **命令补全** | 支持 Tab 补全、上下键选择和鼠标选择；补全窗口会自动避开屏幕边缘 |
+| **撤销与重做** | Ctrl+Z 撤销，Ctrl+Y 或 Ctrl+Shift+Z 重做，保留最近 100 次编辑 |
+| **鼠标多行选择** | 左键拖选文本，拖到编辑区边缘时自动滚动 |
+| **命令方块支持** | 支持普通命令方块、连锁/循环/脉冲设置和命令方块矿车 |
+| **输出显示** | 保留原版上一条输出和跟踪输出开关 |
+| **安全同步** | 首次收到服务器数据后初始化编辑内容，后续更新不会覆盖未保存草稿 |
+| **窗口缩放保留状态** | 保留草稿、光标、选区、输出开关和撤销历史 |
 
-- **Ctrl+Z** 撤销；**Ctrl+Y / Ctrl+Shift+Z** 重做。
-- 每个界面保留最近 100 次文本修改，包括输入、删除、粘贴和 Tab 补全；关闭界面后不保存历史。
-- 鼠标左键拖选多行文字；拖到输入框上、下边缘可滚动扩展选区。
-- 缩放窗口保留草稿、光标、选区、输出开关和撤销历史。
-- 补全窗口在靠近屏幕底部时向上显示，宽度受屏幕边界限制。
+输入框支持 Unicode 文本的安全截断和删除，不会在补充平面字符的代理对中间截断。补全请求也会忽略过期结果，避免网络延迟导致提示回退到旧命令。
 
-## 验证情况
+## 常见问题
 
-已经在真实 NeoForge 客户端（包含 Mixin 变换和游戏字体）中通过 36 项自动回归检查，覆盖长度限制、Unicode 截断和删除、修改通知次数、撤销/重做、鼠标拖选、跨行光标、连续 Tab 补全、弹窗边界、窗口缩放和草稿同步。测试使用内存中的界面与命令方块夹具，不打开或修改存档。
+<details>
+<summary><b>Q：支持 Minecraft 1.20.1 吗？</b></summary>
 
-上述 36 项检查是迁移开发期间的验证记录；当前仓库不包含自动检查源码或运行入口。正常构建命令：
+A：1.20.1 Forge 版本请使用仓库的 `master` 分支。本页面对应的是 `1.21.1-neoforge` 分支。
+</details>
 
-```powershell
-.\gradlew.bat clean build
-```
+<details>
+<summary><b>Q：这是服务端模组吗？</b></summary>
 
-自动检查不等同于完整游戏内验收：仍建议在创造模式世界确认普通命令方块/矿车的保存后重开、真实服务端延迟下的补全，以及不同 GUI 缩放下的显示效果。Minecraft 1.21.1 自身变更的命令语法需要按新版本填写。
+A：它主要是客户端界面模组。服务端不需要安装，但玩家仍需拥有原版命令方块编辑权限。
+</details>
 
-本轮审查详情见 [REVIEW-1.21.1.md](docs/REVIEW-1.21.1.md)。多行交互参考了本地 BetterCommandBlockUI-1.20（Tectato，CC0）；未添加其链导航、区域选择等系统，也未增加运行时依赖。
+<details>
+<summary><b>Q：为什么补全内容和其他版本不一样？</b></summary>
+
+A：补全来自当前连接的 Minecraft 1.21.1 服务器命令树，因此会受到游戏版本、服务器模组和玩家权限影响。
+</details>
+
+## 许可证
+
+本项目使用 MIT 许可证，完整文本见 [LICENSE](LICENSE)。
+
+开发者：青花（Cyanhana_Neko）；最后更新：2026 年 10 月 1 日
+
+欢迎提交 Issue 反馈界面问题、补全异常或兼容性信息。
