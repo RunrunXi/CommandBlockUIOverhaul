@@ -20,6 +20,7 @@ public class ModCommandBlockScreen extends AbstractModCommandBlockScreen {
     private CommandBlockEntity.Mode mode = CommandBlockEntity.Mode.REDSTONE;
     private boolean conditional;
     private boolean autoexec;
+    private boolean commandLoaded;
 
     public ModCommandBlockScreen(CommandBlockEntity pAutoCommandBlock) {
         this.autoCommandBlock = pAutoCommandBlock;
@@ -65,11 +66,12 @@ public class ModCommandBlockScreen extends AbstractModCommandBlockScreen {
                 .create(this.width / 2 + 50 + 4, buttonY, 100, 20, Component.translatable("advMode.triggering"), (p_169724_, p_169725_) -> {
             this.autoexec = p_169725_;
         }));
-        this.enableControls(false);
+        this.enableControls(this.commandLoaded);
     }
 
     private void enableControls(boolean pActive) {
         this.doneButton.active = pActive;
+        this.commandEdit.setEditable(pActive);
         this.outputButton.active = pActive;
         this.modeButton.active = pActive;
         this.conditionalButton.active = pActive;
@@ -81,9 +83,15 @@ public class ModCommandBlockScreen extends AbstractModCommandBlockScreen {
     }
 
     public void updateGui() {
+        // 只用首次数据包初始化草稿，后续输出更新不能覆盖用户正在编辑的命令。
+        if (this.commandLoaded) {
+            this.updatePreviousOutput(this.trackOutput);
+            return;
+        }
         BaseCommandBlock basecommandblock = this.autoCommandBlock.getCommandBlock();
         this.commandEdit.setValue(basecommandblock.getCommand());
         boolean flag = basecommandblock.isTrackOutput();
+        this.trackOutput = flag;
         this.mode = this.autoCommandBlock.getMode();
         this.conditional = this.autoCommandBlock.isConditional();
         this.autoexec = this.autoCommandBlock.isAutomatic();
@@ -92,15 +100,16 @@ public class ModCommandBlockScreen extends AbstractModCommandBlockScreen {
         this.conditionalButton.setValue(this.conditional);
         this.autoexecButton.setValue(this.autoexec);
         this.updatePreviousOutput(flag);
+        this.commandLoaded = true;
         this.enableControls(true);
     }
 
     public void resize(Minecraft pMinecraft, int pWidth, int pHeight) {
         super.resize(pMinecraft, pWidth, pHeight);
-        this.enableControls(true);
+        this.enableControls(this.commandLoaded);
     }
 
     protected void populateAndSendPacket(BaseCommandBlock pCommandBlock) {
-        this.minecraft.getConnection().send(new ServerboundSetCommandBlockPacket(BlockPos.containing(pCommandBlock.getPosition()), this.commandEdit.getValue(), this.mode, pCommandBlock.isTrackOutput(), this.conditional, this.autoexec));
+        this.minecraft.getConnection().send(new ServerboundSetCommandBlockPacket(BlockPos.containing(pCommandBlock.getPosition()), this.commandEdit.getValue(), this.mode, this.trackOutput, this.conditional, this.autoexec));
     }
 }

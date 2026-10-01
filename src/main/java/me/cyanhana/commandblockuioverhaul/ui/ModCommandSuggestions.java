@@ -72,6 +72,7 @@ public class ModCommandSuggestions {
     private ModCommandSuggestions.SuggestionsList suggestions;
     private boolean allowSuggestions;
     boolean keepSuggestions;
+    private long requestVersion;
 
     int lineHeight;
 
@@ -127,7 +128,8 @@ public class ModCommandSuggestions {
 
     // 修改的地方
     public void showSuggestions(boolean pNarrateFirstSuggestion) {
-        if (this.pendingSuggestions != null && this.pendingSuggestions.isDone()) {
+        if (this.pendingSuggestions != null && this.pendingSuggestions.isDone()
+                && !this.pendingSuggestions.isCompletedExceptionally() && !this.pendingSuggestions.isCancelled()) {
             Suggestions suggestions = this.pendingSuggestions.join();
             if (!suggestions.isEmpty()) {
                 int i = 0;
@@ -147,7 +149,9 @@ public class ModCommandSuggestions {
     }
 
     public void hide() {
+        ++this.requestVersion;
         this.suggestions = null;
+        this.input.setSuggestion(null);
     }
 
     private List<Suggestion> sortSuggestions(Suggestions pSuggestions) {
@@ -170,6 +174,7 @@ public class ModCommandSuggestions {
     }
 
     public void updateCommandInfo() {
+        long version = ++this.requestVersion;
         String s = this.input.getValue();
         if (this.currentParse != null && !this.currentParse.getReader().getString().equals(s)) {
             this.currentParse = null;
@@ -178,9 +183,11 @@ public class ModCommandSuggestions {
         if (!this.keepSuggestions) {
             this.input.setSuggestion((String)null);
             this.suggestions = null;
+            this.pendingSuggestions = null;
         }
 
         this.commandUsage.clear();
+        if (this.minecraft.player == null) return;
         StringReader stringreader = new StringReader(s);
         boolean flag = stringreader.canRead() && stringreader.peek() == '/';
         if (flag) {
@@ -198,11 +205,13 @@ public class ModCommandSuggestions {
             int j = this.onlyShowIfCursorPastError ? stringreader.getCursor() : 1;
             if (i >= j && (this.suggestions == null || !this.keepSuggestions)) {
                 this.pendingSuggestions = commanddispatcher.getCompletionSuggestions(this.currentParse, i);
-                this.pendingSuggestions.thenRun(() -> {
-                    if (this.pendingSuggestions.isDone()) {
+                this.pendingSuggestions.whenComplete((result, error) -> this.minecraft.execute(() -> {
+                    // 旧请求不能覆盖新输入；补全回调必须在客户端线程修改界面。
+                    if (error == null && version == this.requestVersion
+                            && this.minecraft.screen == this.screen && !this.keepSuggestions) {
                         this.updateUsageInfo();
                     }
-                });
+                }));
             }
         } else {
             String s1 = s.substring(0, i);
@@ -285,7 +294,7 @@ public class ModCommandSuggestions {
 
         if (!list.isEmpty()) {
             this.commandUsage.addAll(list);
-            this.commandUsagePosition = Mth.clamp(this.input.getScreenX(suggestioncontext.startPos), 0, this.input.getScreenX(0) + this.input.getInnerWidth() - i);
+            this.commandUsagePosition = Math.max(0, this.input.getScreenX(suggestioncontext.startPos));
             this.commandUsageWidth = i;
             return true;
         } else {
@@ -368,15 +377,19 @@ public class ModCommandSuggestions {
 
     // 修改的内容
     public void renderUsage(GuiGraphics guiGraphics) {
+        int totalHeight = this.commandUsage.size() * lineHeight;
+        int cursorY = this.input.getCursorY() - this.input.getScrolledLines() * lineHeight;
+        int y = cursorY + lineHeight;
+        if (y + totalHeight > this.screen.height - 2) y = Math.max(2, cursorY - totalHeight);
+        int width = Math.min(this.commandUsageWidth + 2, Math.max(1, this.screen.width - 4));
+        int x = Mth.clamp(this.input.getCursorX() - 1, 2, Math.max(2, this.screen.width - width - 2));
         for(FormattedCharSequence formattedcharsequence : this.commandUsage) {
-            // 修改建议渲染位置
-            int y = this.input.getCursorY() + lineHeight - this.input.getScrolledLines() * lineHeight;
-            // 之在输入框内渲染
-            if (y > this.input.getY() && y < this.input.getY() + this.input.getHeight()) {
-                guiGraphics.fill(this.input.getCursorX() - 1, y,
-                        this.input.getCursorX() + this.commandUsageWidth + 1, y + lineHeight, this.fillColor);
-                guiGraphics.drawString(this.font, formattedcharsequence, this.input.getCursorX(), y + 2, -1);
-            }
+            if (y + lineHeight > this.screen.height) break;
+            guiGraphics.fill(x, y, x + width, y + lineHeight, this.fillColor);
+            guiGraphics.enableScissor(x, y, x + width, y + lineHeight);
+            guiGraphics.drawString(this.font, formattedcharsequence, x + 1, y + 2, -1);
+            guiGraphics.disableScissor();
+            y += lineHeight;
         }
 
     }
@@ -397,17 +410,30 @@ public class ModCommandSuggestions {
         private int lastNarratedEntry;
 
         SuggestionsList(int pXPos, int pYPos, int pWidth, List<Suggestion> pSuggestionList, boolean pNarrateFirstSuggestion) {
-            int i = pXPos - 1;
-            int j = ModCommandSuggestions.this.anchorToBottom ? pYPos - 3 - Math.min(pSuggestionList.size(), ModCommandSuggestions.this.suggestionLineLimit) * 12 : pYPos;
-            this.rect = new Rect2i(i, j, pWidth + 1, Math.min(pSuggestionList.size(), ModCommandSuggestions.this.suggestionLineLimit) * 12);
             this.originalContents = ModCommandSuggestions.this.input.getValue();
             this.lastNarratedEntry = pNarrateFirstSuggestion ? -1 : 0;
             this.suggestionList = pSuggestionList;
+            this.rect = new Rect2i(0, 0, Math.min(pWidth + 2, Math.max(1, screen.width - 4)), 0);
+            this.updatePosition();
             this.select(0);
         }
 
+        private void updatePosition() {
+            int cursorY = input.getCursorY() - input.getScrolledLines() * lineHeight;
+            int below = Math.max(0, screen.height - cursorY - lineHeight - 2);
+            int above = Math.max(0, cursorY - 3);
+            int desired = Math.min(suggestionList.size(), suggestionLineLimit) * 12;
+            boolean upwards = anchorToBottom || (desired > below && above > below);
+            int rows = Math.max(1, Math.min(desired / 12, (upwards ? above : below) / 12));
+            int height = rows * 12;
+            int y = upwards ? cursorY - 2 - height : cursorY + lineHeight;
+            int x = Mth.clamp(input.getCursorX() - 1, 2, Math.max(2, screen.width - rect.getWidth() - 2));
+            this.rect = new Rect2i(x, Math.max(2, y), rect.getWidth(), height);
+            this.offset = Mth.clamp(this.offset, 0, Math.max(0, suggestionList.size() - rows));
+        }
+
         public void render(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY) {
-            int i = Math.min(this.suggestionList.size(), ModCommandSuggestions.this.suggestionLineLimit);
+            int i = this.rect.getHeight() / 12;
             int j = -5592406;
             boolean flag = this.offset > 0;
             boolean flag1 = this.suggestionList.size() > this.offset + i;
@@ -450,7 +476,10 @@ public class ModCommandSuggestions {
                     flag4 = true;
                 }
 
+                pGuiGraphics.enableScissor(this.rect.getX(), this.rect.getY(),
+                        this.rect.getX() + this.rect.getWidth(), this.rect.getY() + this.rect.getHeight());
                 pGuiGraphics.drawString(ModCommandSuggestions.this.font, suggestion.getText(), this.rect.getX() + 1, this.rect.getY() + 2 + 12 * l, l + this.offset == this.current ? -256 : -5592406);
+                pGuiGraphics.disableScissor();
             }
 
             if (flag4) {
@@ -463,7 +492,7 @@ public class ModCommandSuggestions {
         }
 
         public boolean mouseClicked(int pMouseX, int pMouseY, int pMouseButton) {
-            if (!this.rect.contains(pMouseX, pMouseY)) {
+            if (pMouseButton != 0 || !this.rect.contains(pMouseX, pMouseY)) {
                 return false;
             } else {
                 int i = (pMouseY - this.rect.getY()) / 12 + this.offset;
@@ -480,7 +509,7 @@ public class ModCommandSuggestions {
             int i = (int)(ModCommandSuggestions.this.minecraft.mouseHandler.xpos() * (double)ModCommandSuggestions.this.minecraft.getWindow().getGuiScaledWidth() / (double)ModCommandSuggestions.this.minecraft.getWindow().getScreenWidth());
             int j = (int)(ModCommandSuggestions.this.minecraft.mouseHandler.ypos() * (double)ModCommandSuggestions.this.minecraft.getWindow().getGuiScaledHeight() / (double)ModCommandSuggestions.this.minecraft.getWindow().getScreenHeight());
             if (this.rect.contains(i, j)) {
-                this.offset = Mth.clamp((int)((double)this.offset - pDelta), 0, Math.max(this.suggestionList.size() - ModCommandSuggestions.this.suggestionLineLimit, 0));
+                this.offset = Mth.clamp((int)((double)this.offset - pDelta), 0, Math.max(this.suggestionList.size() - this.rect.getHeight() / 12, 0));
                 return true;
             } else {
                 return false;
@@ -518,11 +547,11 @@ public class ModCommandSuggestions {
         public void cycle(int pChange) {
             this.select(this.current + pChange);
             int i = this.offset;
-            int j = this.offset + ModCommandSuggestions.this.suggestionLineLimit - 1;
+            int j = this.offset + this.rect.getHeight() / 12 - 1;
             if (this.current < i) {
-                this.offset = Mth.clamp(this.current, 0, Math.max(this.suggestionList.size() - ModCommandSuggestions.this.suggestionLineLimit, 0));
+                this.offset = Mth.clamp(this.current, 0, Math.max(this.suggestionList.size() - this.rect.getHeight() / 12, 0));
             } else if (this.current > j) {
-                this.offset = Mth.clamp(this.current + ModCommandSuggestions.this.lineStartOffset - ModCommandSuggestions.this.suggestionLineLimit, 0, Math.max(this.suggestionList.size() - ModCommandSuggestions.this.suggestionLineLimit, 0));
+                this.offset = Mth.clamp(this.current - this.rect.getHeight() / 12 + 1, 0, Math.max(this.suggestionList.size() - this.rect.getHeight() / 12, 0));
             }
 
         }
@@ -548,20 +577,16 @@ public class ModCommandSuggestions {
         public void useSuggestion() {
             Suggestion suggestion = this.suggestionList.get(this.current);
             ModCommandSuggestions.this.keepSuggestions = true;
-            ModCommandSuggestions.this.input.setValue(suggestion.apply(this.originalContents));
-            int i = suggestion.getRange().getStart() + suggestion.getText().length();
-            ModCommandSuggestions.this.input.setCursorPosition(i);
-            ModCommandSuggestions.this.input.setHighlightPos(i);
-            // 补全会重新换行；弹窗必须跟随新的光标，避免遮住实际插入点。
-            int cursorY = ModCommandSuggestions.this.input.getCursorY()
-                    - ModCommandSuggestions.this.input.getScrolledLines() * lineHeight;
-            int popupY = ModCommandSuggestions.this.anchorToBottom
-                    ? cursorY - 3 - this.rect.getHeight() : cursorY + lineHeight;
-            this.rect = new Rect2i(ModCommandSuggestions.this.input.getCursorX() - 1,
-                    popupY, this.rect.getWidth(), this.rect.getHeight());
-            this.select(this.current);
-            ModCommandSuggestions.this.keepSuggestions = false;
-            this.tabCycles = true;
+            try {
+                int cursor = suggestion.getRange().getStart() + suggestion.getText().length();
+                if (input.applyUserEdit(suggestion.apply(this.originalContents), cursor)) {
+                    this.updatePosition();
+                    this.cycle(0);
+                    this.tabCycles = true;
+                }
+            } finally {
+                ModCommandSuggestions.this.keepSuggestions = false;
+            }
         }
 
         Component getNarrationMessage() {
