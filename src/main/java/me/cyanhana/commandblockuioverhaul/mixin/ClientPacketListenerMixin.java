@@ -17,9 +17,10 @@ public class ClientPacketListenerMixin {
     public void handleBlockEntityDataInject(ClientboundBlockEntityDataPacket pPacket, CallbackInfo ci) {
         BlockPos blockpos = pPacket.getPos();
         Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null) return;
         minecraft.level.getBlockEntity(blockpos, pPacket.getType()).ifPresent((blockEntity) -> {
 
-            if (blockEntity instanceof CommandBlockEntity && minecraft.screen instanceof ModCommandBlockScreen) {
+            if (blockEntity instanceof CommandBlockEntity && minecraft.screen instanceof ModCommandBlockScreen screen && screen.isEditing(blockpos)) {
                 ((ModCommandBlockScreen)minecraft.screen).updateGui();
             }
 

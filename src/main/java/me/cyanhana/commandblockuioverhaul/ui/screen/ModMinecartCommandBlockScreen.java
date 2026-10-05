@@ -26,7 +26,7 @@ public class ModMinecartCommandBlockScreen extends AbstractModCommandBlockScreen
 
     protected void populateAndSendPacket(BaseCommandBlock pCommandBlock) {
         if (pCommandBlock instanceof MinecartCommandBlock.MinecartCommandBase minecartcommandblock$minecartcommandbase) {
-            this.minecraft.getConnection().send(new ServerboundSetCommandMinecartPacket(minecartcommandblock$minecartcommandbase.getMinecart().getId(), this.commandEdit.getValue(), pCommandBlock.isTrackOutput()));
+            this.minecraft.getConnection().send(new ServerboundSetCommandMinecartPacket(minecartcommandblock$minecartcommandbase.getMinecart().getId(), this.commandEdit.getValue(), this.trackOutput));
         }
 
     }

@@ -2,15 +2,13 @@
   "required": true,
   "minVersion": "0.8",
   "package": "me.cyanhana.commandblockuioverhaul.mixin",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_17",
   "refmap": "commandblockuioverhaul.refmap.json",
   "mixins": [
   ],
   "client": [
-    "CommandBlockMixin",
-    "ServerPlayerAccessor",
+    "LocalPlayerMixin",
     "ClientPacketListenerMixin",
-    "BaseCommandBlockMixin",
     "EditBoxAccessor"
   ],
   "injectors": {

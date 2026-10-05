@@ -29,6 +29,8 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     protected Button cancelButton;
     protected CycleButton<Boolean> outputButton;
     ModCommandSuggestions commandSuggestions;
+    protected boolean trackOutput;
+    private boolean initialized;
 
     public AbstractModCommandBlockScreen() {
         super(GameNarrator.NO_TITLE);
@@ -56,13 +58,16 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
         this.cancelButton = this.addRenderableWidget(Button.builder(CommonComponents.GUI_CANCEL, (p_289627_) -> {
             this.onClose();
         }).bounds(this.width / 2 + 4, this.height / 6 * 5 + 10, 150, 20).build());
-        boolean flag = this.getCommandBlock().isTrackOutput();
+        if (!this.initialized) {
+            this.trackOutput = this.getCommandBlock().isTrackOutput();
+            this.initialized = true;
+        }
+        boolean flag = this.trackOutput;
         // 输出按钮
         this.outputButton = this.addRenderableWidget(CycleButton.booleanBuilder(Component.literal("O"), Component.literal("X"))
                 .withInitialValue(flag).displayOnlyValue()
                 .create(outputButtonX, outputButtonY, 20, 20, Component.translatable("advMode.trackOutput"), (p_169596_, p_169597_) -> {
-            BaseCommandBlock basecommandblock = this.getCommandBlock();
-            basecommandblock.setTrackOutput(p_169597_);
+            this.trackOutput = p_169597_;
             this.updatePreviousOutput(p_169597_);
         }));
         // 命令输入框
@@ -71,7 +76,8 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
                         commandEditWidth, this.height / 5 * 3, DESCRIBE_MESSAGE)
         {
             protected @NotNull MutableComponent createNarrationMessage() {
-                return super.createNarrationMessage().append(AbstractModCommandBlockScreen.this.commandSuggestions.getNarrationMessage());
+                MutableComponent message = super.createNarrationMessage();
+                return commandSuggestions == null ? message : message.append(commandSuggestions.getNarrationMessage());
             }
         };
         this.commandEdit.setMaxLength(32500);
@@ -87,7 +93,7 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
         this.setInitialFocus(this.commandEdit);
         // 初始化命令建议器
         this.commandSuggestions = new ModCommandSuggestions(this.minecraft, this, this.commandEdit,
-                this.font, true, true, 0, 7, false, Integer.MIN_VALUE);
+                this.font, true, true, 0, 7, false, 0xFF202020);
         this.commandSuggestions.setAllowSuggestions(true);
         this.commandSuggestions.updateCommandInfo();
         this.commandEdit.setCommandSuggestions(this.commandSuggestions);
@@ -96,10 +102,9 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     }
 
     public void resize(Minecraft pMinecraft, int pWidth, int pHeight) {
-        String s = this.commandEdit.getValue();
+        ModMultiLineEditBox previous = this.commandEdit;
         this.init(pMinecraft, pWidth, pHeight);
-        this.commandEdit.setValue(s);
-        this.commandSuggestions.updateCommandInfo();
+        this.commandEdit.copyStateFrom(previous);
     }
 
     protected void updatePreviousOutput(boolean pTrackOutput) {
@@ -107,11 +112,9 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     }
 
     protected void onDone() {
+        if (!this.doneButton.active || this.minecraft.getConnection() == null) return;
         BaseCommandBlock basecommandblock = this.getCommandBlock();
         this.populateAndSendPacket(basecommandblock);
-        if (!basecommandblock.isTrackOutput()) {
-            basecommandblock.setLastOutput((Component)null);
-        }
 
         this.minecraft.setScreen((Screen)null);
     }
@@ -119,7 +122,7 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     protected abstract void populateAndSendPacket(BaseCommandBlock pCommandBlock);
 
     private void onEdited(String p_97689_) {
-        this.commandSuggestions.updateCommandInfo();
+        if (this.commandSuggestions != null) this.commandSuggestions.updateCommandInfo();
     }
 
     public boolean keyPressed(int pKeyCode, int pScanCode, int pModifiers) {
@@ -144,8 +147,9 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     }
 
     public void render(@NotNull GuiGraphics pGuiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
-        // 背景色
+        // 1.20.1 的 Screen.render 不绘制背景，需先显式绘制，再绘制控件。
         this.renderBackground(pGuiGraphics);
+        super.render(pGuiGraphics, pMouseX, pMouseY, pPartialTick);
         // 中央文本
         pGuiGraphics.drawCenteredString(this.font, SET_COMMAND_LABEL, this.width / 2, 10, 16777215);
         // 输入框上方文本
@@ -159,7 +163,6 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
             this.previousEdit.render(pGuiGraphics, pMouseX, pMouseY, pPartialTick);
         }
 
-        super.render(pGuiGraphics, pMouseX, pMouseY, pPartialTick);
         // 命令建议
         this.commandSuggestions.render(pGuiGraphics, pMouseX, pMouseY);
     }
