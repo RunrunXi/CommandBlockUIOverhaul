@@ -149,6 +149,12 @@ public class ModMultiLineEditBox extends EditBox {
         return cursorY;
     }
 
+    /** 光标是否位于实际绘制的行范围内；手动滚动不应让建议悬浮在无关文本上。 */
+    public boolean isCursorVisible() {
+        return this.isVisible() && cursorLine >= scrolledLines
+                && cursorLine < scrolledLines + Math.max(1, visibleLines);
+    }
+
     public int getScrolledLines() {
         return scrolledLines;
     }

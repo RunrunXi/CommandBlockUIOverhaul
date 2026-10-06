@@ -143,6 +143,15 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     }
 
     public boolean mouseClicked(double pMouseX, double pMouseY, int pButton) {
+        if (!this.commandEdit.isMouseOver(pMouseX, pMouseY)) {
+            // Screen 默认点击空白不会清空焦点，需要显式解除命令框的焦点归属。
+            this.commandSuggestions.hide();
+            if (this.getFocused() == this.commandEdit) this.setFocused(null);
+            this.commandEdit.setFocused(false);
+            this.setDragging(false);
+            // 仍交给父类处理按钮和输出框；点击空白则保持无焦点。
+            return super.mouseClicked(pMouseX, pMouseY, pButton);
+        }
         return this.commandSuggestions.mouseClicked(pMouseX, pMouseY, pButton) || super.mouseClicked(pMouseX, pMouseY, pButton);
     }
 

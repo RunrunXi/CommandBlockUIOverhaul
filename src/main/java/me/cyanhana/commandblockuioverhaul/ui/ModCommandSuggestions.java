@@ -101,6 +101,10 @@ public class ModCommandSuggestions {
     }
 
     public boolean keyPressed(int pKeyCode, int pScanCode, int pModifiers) {
+        if (!this.canShowSuggestions()) {
+            this.hide();
+            return false;
+        }
         if (this.suggestions != null && this.suggestions.keyPressed(pKeyCode, pScanCode, pModifiers)) {
             return true;
         } else if (this.screen.getFocused() == this.input && pKeyCode == 258) {
@@ -113,6 +117,10 @@ public class ModCommandSuggestions {
 
     // 修改的地方
     public boolean mouseScrolled(double pDelta) {
+        if (!this.canShowSuggestions()) {
+            this.hide();
+            return false;
+        }
         // 在滚动时隐藏命令建议
         boolean flag = this.suggestions != null && this.suggestions.mouseScrolled(Mth.clamp(pDelta, -1.0D, 1.0D));
         if (!flag) {
@@ -123,11 +131,13 @@ public class ModCommandSuggestions {
     }
 
     public boolean mouseClicked(double pMouseX, double pMouseY, int pMouseButton) {
+        if (!this.canShowSuggestions()) return false;
         return this.suggestions != null && this.suggestions.mouseClicked((int)pMouseX, (int)pMouseY, pMouseButton);
     }
 
     // 修改的地方
     public void showSuggestions(boolean pNarrateFirstSuggestion) {
+        if (!this.canShowSuggestions()) return;
         if (this.pendingSuggestions != null && this.pendingSuggestions.isDone()
                 && !this.pendingSuggestions.isCompletedExceptionally() && !this.pendingSuggestions.isCancelled()) {
             Suggestions suggestions = this.pendingSuggestions.join();
@@ -152,6 +162,12 @@ public class ModCommandSuggestions {
         ++this.requestVersion;
         this.suggestions = null;
         this.input.setSuggestion(null);
+    }
+
+    // 同时检查 Screen 的焦点归属和控件自身状态，避免失焦后吞掉 Tab、方向键。
+    private boolean canShowSuggestions() {
+        return this.screen.getFocused() == this.input && this.input.canConsumeInput()
+                && this.input.isCursorVisible();
     }
 
     private List<Suggestion> sortSuggestions(Suggestions pSuggestions) {
@@ -208,7 +224,8 @@ public class ModCommandSuggestions {
                 this.pendingSuggestions.whenComplete((result, error) -> this.minecraft.execute(() -> {
                     // 旧请求不能覆盖新输入；补全回调必须在客户端线程修改界面。
                     if (error == null && version == this.requestVersion
-                            && this.minecraft.screen == this.screen && !this.keepSuggestions) {
+                            && this.minecraft.screen == this.screen && !this.keepSuggestions
+                            && this.canShowSuggestions()) {
                         this.updateUsageInfo();
                     }
                 }));
@@ -359,6 +376,12 @@ public class ModCommandSuggestions {
     }
 
     public void render(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY) {
+        // 失焦或光标被滚出可视区域时，建议列表与 usage/error 悬浮提示都不绘制。
+        // hide 同时使迟到的异步请求失效，并清除编辑框中的灰色预补全文本。
+        if (!this.canShowSuggestions()) {
+            this.hide();
+            return;
+        }
         // 先提交编辑器文字，再将建议背景和文字作为独立的前景层绘制。
         pGuiGraphics.flush();
         pGuiGraphics.pose().pushPose();
