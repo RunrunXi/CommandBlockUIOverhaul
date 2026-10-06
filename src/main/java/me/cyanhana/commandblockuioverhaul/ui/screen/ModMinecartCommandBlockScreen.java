@@ -10,6 +10,7 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 public class ModMinecartCommandBlockScreen extends AbstractModCommandBlockScreen {
 
     private final BaseCommandBlock commandBlock;
+    private boolean commandLoaded;
 
     public ModMinecartCommandBlockScreen(BaseCommandBlock pCommandBlock) {
         this.commandBlock = pCommandBlock;
@@ -21,7 +22,10 @@ public class ModMinecartCommandBlockScreen extends AbstractModCommandBlockScreen
 
     protected void init() {
         super.init();
-        this.commandEdit.setValue(this.getCommandBlock().getCommand());
+        if (!this.commandLoaded) {
+            this.commandEdit.setValue(this.getCommandBlock().getCommand());
+            this.commandLoaded = true;
+        }
     }
 
     protected void populateAndSendPacket(BaseCommandBlock pCommandBlock) {
