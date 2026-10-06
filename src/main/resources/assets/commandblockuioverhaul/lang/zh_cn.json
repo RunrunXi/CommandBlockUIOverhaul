@@ -19,5 +19,9 @@
   "commandblockuioverhaul.config.commandPreview": "命令渲染预览（可编辑，不会执行）",
   "commandblockuioverhaul.config.lineBreaks": "断行位置",
   "commandblockuioverhaul.config.before": "前",
-  "commandblockuioverhaul.config.after": "后"
+  "commandblockuioverhaul.config.after": "后",
+  "commandblockuioverhaul.palette.title": "调色板",
+  "commandblockuioverhaul.palette.copy": "复制",
+  "commandblockuioverhaul.palette.hex": "十六进制颜色值",
+  "commandblockuioverhaul.palette.decimal": "十进制颜色值"
 }

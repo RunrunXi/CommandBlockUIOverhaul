@@ -19,5 +19,9 @@
   "commandblockuioverhaul.config.commandPreview": "Command preview (editable; never executed)",
   "commandblockuioverhaul.config.lineBreaks": "Line breaks",
   "commandblockuioverhaul.config.before": "Before",
-  "commandblockuioverhaul.config.after": "After"
+  "commandblockuioverhaul.config.after": "After",
+  "commandblockuioverhaul.palette.title": "Color Picker",
+  "commandblockuioverhaul.palette.copy": "Copy",
+  "commandblockuioverhaul.palette.hex": "Hex color value",
+  "commandblockuioverhaul.palette.decimal": "Decimal color value"
 }
