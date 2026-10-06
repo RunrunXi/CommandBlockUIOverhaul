@@ -1,20 +1,49 @@
 package me.cyanhana.commandblockuioverhaul.ui;
 
+import me.cyanhana.commandblockuioverhaul.Config;
+import net.minecraft.ChatFormatting;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
 /** Structural highlighting in original UTF-16 coordinates, independent of visual wrapping.
  * 在原始UTF-16坐标中进行结构高亮显示，与视觉换行无关。 */
-final class CommandHierarchyColors {
-    // 第 0 层使用浅灰；更深层依次使用青蓝、柔黄、薄荷绿、淡紫、珊瑚橙、淡蓝。
+public final class CommandHierarchyColors {
+    // IDEA 新界面 Dark 风格：基础文本、关键字、数字、字符串、字段、方法、标签。
+    // 将语法颜色用于命令层级区分，并非复刻 IDEA 按语法类别着色的规则。
+    // 深灰背景与边框参考 JetBrains 的 themes/expUI/expUI_dark.theme.json。
     // 使用 RGB 色值，不包含透明度；修改此数组即可调整整个编辑器的层级配色。
     private static final int[] PALETTE = {
-            0xCDD6E4, 0x89DCEB, 0xF9E2AF, 0xA6E3A1, 0xCBA6F7, 0xFAB387, 0x89B4FA
+            0xBCBEC4, 0xCF8E6D, 0x2AACB8, 0x6AAB73, 0xC77DBB, 0x56A8F5, 0xD5B778
+    };
+    private static final int[] VANILLA_PALETTE = {
+            ChatFormatting.GRAY.getColor(), ChatFormatting.AQUA.getColor(),
+            ChatFormatting.YELLOW.getColor(), ChatFormatting.GREEN.getColor(),
+            ChatFormatting.LIGHT_PURPLE.getColor(), ChatFormatting.GOLD.getColor(),
+            ChatFormatting.BLUE.getColor()
     };
 
-    static int color(int level) {
+    public static int color(int level) {
+        int[] palette = Config.COLOR_SCHEME.get() == Config.ColorScheme.VANILLA ? VANILLA_PALETTE : PALETTE;
         // 深层只循环彩色部分，避免第 7 层重新变成基础灰色。
-        return PALETTE[level == 0 ? 0 : 1 + Math.floorMod(level - 1, PALETTE.length - 1)];
+        return palette[level == 0 ? 0 : 1 + Math.floorMod(level - 1, palette.length - 1)];
+    }
+
+    public static boolean isIdeaDark() {
+        return Config.COLOR_SCHEME.get() == Config.ColorScheme.MODERN;
+    }
+
+    // 采用不透明 ARGB 背景；建议列表不能透出下方的命令文字。
+    public static int editorBackground() {
+        return isIdeaDark() ? 0xFF1E1F22 : 0xFF000000;
+    }
+
+    public static int popupBackground() {
+        return isIdeaDark() ? 0xFF2B2D30 : 0xFF202020;
+    }
+
+    public static int editorBorder(boolean focused) {
+        return isIdeaDark() ? (focused ? 0xFFA0A0A0 : 0xFF43454A)
+                : (focused ? 0xFFFFFFFF : 0xFFA0A0A0);
     }
 
     static int[] levels(String text, int[] baseLevels) {

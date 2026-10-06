@@ -1,5 +1,6 @@
 package me.cyanhana.commandblockuioverhaul.ui;
 
+import me.cyanhana.commandblockuioverhaul.Config;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.mojang.brigadier.CommandDispatcher;
@@ -49,6 +50,7 @@ public class ModCommandSuggestions {
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("(\\s+)");
     private static final Style UNPARSED_STYLE = Style.EMPTY.withColor(ChatFormatting.RED);
     private String highlightedText;
+    private Config.ColorScheme highlightedScheme;
     private ParseResults<SharedSuggestionProvider> highlightedParse;
     private Style[] highlightedStyles = new Style[0];
     final Minecraft minecraft;
@@ -323,8 +325,10 @@ public class ModCommandSuggestions {
         // pCommand 是一条显示行；pMaxLength 实际是该行在原始命令中的起始偏移。
         // 整条命令共享着色缓存，避免每一行都重新扫描全部括号和命令上下文。
         String text = this.input.getValue();
-        if (!text.equals(this.highlightedText) || this.highlightedParse != this.currentParse) {
+        if (!text.equals(this.highlightedText) || this.highlightedParse != this.currentParse
+                || this.highlightedScheme != Config.COLOR_SCHEME.get()) {
             this.highlightedText = text;
+            this.highlightedScheme = Config.COLOR_SCHEME.get();
             this.highlightedParse = this.currentParse;
             this.highlightedStyles = createHierarchyStyles(text, this.currentParse);
         }

@@ -578,15 +578,15 @@ public class ModMultiLineEditBox extends EditBox {
             return;
         }
 
-        // 绘制背景（复用父类逻辑）
+        // 背景与边框随配色方案切换，Dark 使用 IDEA 的深灰编辑区和蓝色焦点边框。
         if (this.isBordered()) {
-            int borderColor = this.isFocused() ? -1 : -6250336;
+            int borderColor = CommandHierarchyColors.editorBorder(this.isFocused());
             guiGraphics.fill(this.getX() - 1, this.getY() - 1,
                     this.getX() + this.width + 1, this.getY() + this.height + 1,
                     borderColor);
             guiGraphics.fill(this.getX(), this.getY(),
                     this.getX() + this.width, this.getY() + this.height,
-                    -16777216);
+                    CommandHierarchyColors.editorBackground());
         }
 
         // 裁剪深层缩进、预输入文字和选择高亮，避免绘制到输入框外。

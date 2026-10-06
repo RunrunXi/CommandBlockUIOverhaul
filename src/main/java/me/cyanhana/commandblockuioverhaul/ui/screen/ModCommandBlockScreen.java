@@ -73,6 +73,7 @@ public class ModCommandBlockScreen extends AbstractModCommandBlockScreen {
         this.doneButton.active = pActive;
         this.commandEdit.setEditable(pActive);
         this.outputButton.active = pActive;
+        this.configButton.active = pActive;
         this.modeButton.active = pActive;
         this.conditionalButton.active = pActive;
         this.autoexecButton.active = pActive;

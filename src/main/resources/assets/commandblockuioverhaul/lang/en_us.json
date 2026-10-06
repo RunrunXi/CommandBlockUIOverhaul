@@ -1,1 +1,7 @@
-{}
+{
+  "commandblockuioverhaul.config.title": "Command Block UI Settings",
+  "commandblockuioverhaul.config.palette": "Color scheme",
+  "commandblockuioverhaul.config.modern": "Modern",
+  "commandblockuioverhaul.config.vanilla": "Vanilla",
+  "commandblockuioverhaul.config.preview": "Hierarchy color preview"
+}

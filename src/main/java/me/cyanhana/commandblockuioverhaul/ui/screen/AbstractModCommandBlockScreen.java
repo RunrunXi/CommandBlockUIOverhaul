@@ -1,6 +1,7 @@
 package me.cyanhana.commandblockuioverhaul.ui.screen;
 
 import me.cyanhana.commandblockuioverhaul.ui.ModCommandSuggestions;
+import me.cyanhana.commandblockuioverhaul.ui.CommandHierarchyColors;
 import me.cyanhana.commandblockuioverhaul.ui.ModMultiLineEditBox;
 import net.minecraft.client.GameNarrator;
 import net.minecraft.client.Minecraft;
@@ -8,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
@@ -28,6 +30,7 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     protected Button doneButton;
     protected Button cancelButton;
     protected CycleButton<Boolean> outputButton;
+    protected Button configButton;
     ModCommandSuggestions commandSuggestions;
     protected boolean trackOutput;
     private boolean initialized;
@@ -47,7 +50,10 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     abstract BaseCommandBlock getCommandBlock();
 
     protected void init() {
-        int outputButtonX = this.width / 2 + 150 - 20;
+        // setScreen 返回和窗口缩放都会重建控件，保留旧编辑器的草稿、选区与历史。
+        ModMultiLineEditBox previous = this.commandEdit;
+        // 为右侧配置按钮预留空间，小窗口下也不让按钮超出屏幕。
+        int outputButtonX = Math.min(this.width / 2 + 150 - 20, this.width - 46);
         int outputButtonY = this.height / 6 * 5 - 35;
         int commandEditWidth = this.width / 4 * 3;
         // 完成按钮
@@ -71,6 +77,11 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
             this.updatePreviousOutput(p_169597_);
         }));
         // 命令输入框
+        this.configButton = this.addRenderableWidget(Button.builder(Component.literal("..."), button -> {
+            this.commandSuggestions.hide();
+            this.minecraft.setScreen(new ModConfigScreen(this));
+        }).bounds(outputButtonX + 24, outputButtonY, 20, 20)
+                .tooltip(Tooltip.create(Component.translatable("commandblockuioverhaul.config.title"))).build());
         this.commandEdit = new ModMultiLineEditBox
                 (this.font, (this.width - commandEditWidth) / 2, this.height / 6 - 22,
                         commandEditWidth, this.height / 5 * 3, DESCRIBE_MESSAGE)
@@ -84,7 +95,8 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
         this.commandEdit.setResponder(this::onEdited);
         this.addWidget(this.commandEdit);
         // 输出框
-        this.previousEdit = new EditBox(this.font, this.width / 2 - 150, outputButtonY, 276, 20, Component.translatable("advMode.previousOutput"));
+        this.previousEdit = new EditBox(this.font, this.width / 2 - 150, outputButtonY,
+                Math.max(1, outputButtonX - (this.width / 2 - 150) - 4), 20, Component.translatable("advMode.previousOutput"));
         this.previousEdit.setMaxLength(32500);
         this.previousEdit.setEditable(false);
         this.previousEdit.setValue("-");
@@ -93,18 +105,17 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
         this.setInitialFocus(this.commandEdit);
         // 初始化命令建议器
         this.commandSuggestions = new ModCommandSuggestions(this.minecraft, this, this.commandEdit,
-                this.font, true, true, 0, 7, false, 0xFF202020);
+                this.font, true, true, 0, 7, false, CommandHierarchyColors.popupBackground());
         this.commandSuggestions.setAllowSuggestions(true);
         this.commandSuggestions.updateCommandInfo();
         this.commandEdit.setCommandSuggestions(this.commandSuggestions);
+        if (previous != null) this.commandEdit.copyStateFrom(previous);
         // 初始化输出框
         this.updatePreviousOutput(flag);
     }
 
     public void resize(Minecraft pMinecraft, int pWidth, int pHeight) {
-        ModMultiLineEditBox previous = this.commandEdit;
         this.init(pMinecraft, pWidth, pHeight);
-        this.commandEdit.copyStateFrom(previous);
     }
 
     protected void updatePreviousOutput(boolean pTrackOutput) {
