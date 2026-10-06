@@ -3,5 +3,21 @@
   "commandblockuioverhaul.config.palette": "配色方案",
   "commandblockuioverhaul.config.modern": "现代",
   "commandblockuioverhaul.config.vanilla": "原版",
-  "commandblockuioverhaul.config.preview": "层级配色预览"
+  "commandblockuioverhaul.config.preview": "层级配色预览",
+  "commandblockuioverhaul.config.appearance": "配色",
+  "commandblockuioverhaul.config.layout": "排版",
+  "commandblockuioverhaul.config.beforeOpen": "左括号前断行",
+  "commandblockuioverhaul.config.afterOpen": "左括号后断行",
+  "commandblockuioverhaul.config.beforeClose": "右括号前断行",
+  "commandblockuioverhaul.config.afterClose": "右括号后断行",
+  "commandblockuioverhaul.config.afterComma": "逗号后断行",
+  "commandblockuioverhaul.config.formatStrings": "格式化字符串",
+  "commandblockuioverhaul.config.avoidEmpty": "避免空行",
+  "commandblockuioverhaul.config.indentation": "缩进（空格）",
+  "commandblockuioverhaul.config.wrapWidth": "行宽（像素）",
+  "commandblockuioverhaul.config.range": "有效范围：%s–%s；红色值不保存",
+  "commandblockuioverhaul.config.commandPreview": "命令渲染预览（可编辑，不会执行）",
+  "commandblockuioverhaul.config.lineBreaks": "断行位置",
+  "commandblockuioverhaul.config.before": "前",
+  "commandblockuioverhaul.config.after": "后"
 }

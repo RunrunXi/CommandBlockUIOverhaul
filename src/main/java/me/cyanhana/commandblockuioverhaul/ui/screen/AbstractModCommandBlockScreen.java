@@ -34,6 +34,8 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
     ModCommandSuggestions commandSuggestions;
     protected boolean trackOutput;
     private boolean initialized;
+    private int configReturnCursor;
+    private int configReturnAnchor;
 
     public AbstractModCommandBlockScreen() {
         super(GameNarrator.NO_TITLE);
@@ -78,7 +80,11 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
         }));
         // 命令输入框
         this.configButton = this.addRenderableWidget(Button.builder(Component.literal("..."), button -> {
+            this.configReturnCursor = this.commandEdit.getCursorPosition();
+            this.configReturnAnchor = this.commandEdit.getSelectionAnchor();
             this.commandSuggestions.hide();
+            this.setDragging(false);
+            this.commandEdit.resetSelectionModifier();
             this.minecraft.setScreen(new ModConfigScreen(this));
         }).bounds(outputButtonX + 24, outputButtonY, 20, 20)
                 .tooltip(Tooltip.create(Component.translatable("commandblockuioverhaul.config.title"))).build());
@@ -116,6 +122,18 @@ public abstract class AbstractModCommandBlockScreen extends Screen {
 
     public void resize(Minecraft pMinecraft, int pWidth, int pHeight) {
         this.init(pMinecraft, pWidth, pHeight);
+    }
+
+    public void returnFromConfig() {
+        // 在 setScreen 完成控件重建与默认焦点导航之后恢复真实选区。
+        // 清除跨界面的鼠标拖动状态，防止“返回”按钮的点击被延续成文本拖选。
+        this.setDragging(false);
+        this.clearFocus();
+        this.commandEdit.resetSelectionModifier();
+        this.setFocused(this.commandEdit);
+        this.commandEdit.setCursorPosition(this.configReturnCursor);
+        this.commandEdit.setHighlightPos(this.configReturnAnchor);
+        this.commandSuggestions.hide();
     }
 
     protected void updatePreviousOutput(boolean pTrackOutput) {

@@ -1,6 +1,7 @@
 package me.cyanhana.commandblockuioverhaul.ui;
 
 import me.cyanhana.commandblockuioverhaul.mixin.EditBoxAccessor;
+import me.cyanhana.commandblockuioverhaul.Config;
 import net.minecraft.util.StringUtil;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
@@ -56,8 +57,7 @@ public class ModMultiLineEditBox extends EditBox {
     private record EditState(String text, int cursor, int anchor) {}
     private boolean shiftPressed;
     // 设置
-    private final boolean isFormatString = true;  // 是否处理字符串内的换行
-    private final int indentation = 2;          // 缩进空格数
+    private int indentation = Config.INDENTATION.get(); // 当前布局使用的缩进空格数
     // 光标
     private int cursorLine = 0;              // 光标所在行
     private int cursorIndexInLine = 0;       // 光标在行的位置
@@ -157,6 +157,27 @@ public class ModMultiLineEditBox extends EditBox {
 
     public int getScrolledLines() {
         return scrolledLines;
+    }
+
+    public int getMaxScrolledLines() {
+        return Math.max(0, lines.size() - visibleLines);
+    }
+
+    public int getVisibleLineCount() {
+        return visibleLines;
+    }
+
+    public void scrollToLine(int line) {
+        scrolledLines = Mth.clamp(line, 0, getMaxScrolledLines());
+    }
+
+    public int getSelectionAnchor() {
+        return this.highlightPos;
+    }
+
+    public void resetSelectionModifier() {
+        // 跨界面切换后不沿用编辑器上一次按键留下的 Shift 选择状态。
+        this.shiftPressed = false;
     }
 
     @Override
@@ -414,119 +435,25 @@ public class ModMultiLineEditBox extends EditBox {
         lines.clear();
         indentLevels.clear();
         formattedLines.clear();
-
-        int innerWidth = this.getInnerWidth();
-
-        if (text.isEmpty()) {
-            lines.add("");
-            indentLevels.add(0);
-            return;
+        CommandTextLayout.Options options = new CommandTextLayout.Options(
+                Config.BREAK_BEFORE_OPEN.get(), Config.BREAK_AFTER_OPEN.get(),
+                Config.BREAK_BEFORE_CLOSE.get(), Config.BREAK_AFTER_CLOSE.get(),
+                Config.BREAK_AFTER_COMMA.get(), Config.FORMAT_STRINGS.get(),
+                Config.AVOID_EMPTY_LINES.get(), indentation, Config.WRAP_WIDTH.get());
+        for (CommandTextLayout.Row row : CommandTextLayout.layout(text, options, getInnerWidth(), font::width)) {
+            lines.add(row.text());
+            indentLevels.add(row.indent());
         }
+    }
 
-        char[] chars = text.toCharArray();
-        StringBuilder currentLine = new StringBuilder();
-        int currentIndent = 0; // 当前缩进级别
-        int bracketDepth = 0;  // 括号深度，用于计算缩进
-        boolean inString = false; // 是否在字符串内
-        char stringChar = '\0';  // 字符串起始字符 ' 或 "
-
-        // 遍历字符数组
-        for (int i = 0; i < chars.length; i++) {
-            char c = chars[i];
-
-            if (!isFormatString) {// 处理字符串（字符串内的字符不触发特殊换行）
-                if (!inString && (c == '\'' || c == '"')) {
-                    inString = true;
-                    stringChar = c;
-                } else if (inString && c == stringChar && chars[i - 1] != '\\') {
-                    inString = false;
-                }
-            }
-
-            // 如果不是在字符串内，检查括号
-            if (isFormatString || !inString) {
-                if (c == '{' || c == '[') {
-                    // 左括号前换行并添加当前行
-                    if (!currentLine.isEmpty()) {
-                        lines.add(currentLine.toString());
-                        indentLevels.add(currentIndent);
-                        currentLine = new StringBuilder();
-                    }
-
-                    // 添加左括号到新行
-                    currentLine.append(c);
-                    lines.add(currentLine.toString());
-                    indentLevels.add(currentIndent);
-                    currentLine = new StringBuilder();
-
-                    // 增加括号深度和缩进
-                    bracketDepth++;
-                    currentIndent = bracketDepth;
-
-                    continue; // 跳过宽度检查，因为已经处理了换行
-
-                } else if (c == '}' || c == ']') {
-                    // 右括号前换行并添加当前行
-                    if (!currentLine.isEmpty()) {
-                        lines.add(currentLine.toString());
-                        indentLevels.add(currentIndent);
-                        currentLine = new StringBuilder();
-                    }
-
-                    // 减少括号深度和缩进
-                    bracketDepth = Math.max(0, bracketDepth - 1);
-                    currentIndent = bracketDepth;
-
-                    // 添加右括号到新行
-                    currentLine.append(c);
-                    lines.add(currentLine.toString());
-                    indentLevels.add(currentIndent);
-                    currentLine = new StringBuilder();
-
-                    continue; // 跳过宽度检查
-                }
-            }
-
-            // 添加字符到当前行
-            currentLine.append(c);
-
-            // 检查宽度是否超过文本框的五分之四
-            if (this.font.width(currentLine.toString()) > innerWidth * 4 / 5) {
-                // 找到合适的换行点
-                int breakPoint = findBreakPoint(currentLine.toString());
-
-                if (breakPoint > 0 && breakPoint < currentLine.length()) {
-                    // 在合适位置换行
-                    String line = currentLine.substring(0, breakPoint);
-                    lines.add(line);
-                    indentLevels.add(currentIndent);
-
-                    // 剩余字符开始新行（保持相同缩进）
-                    String remaining = currentLine.substring(breakPoint);
-                    currentLine = new StringBuilder(remaining);
-                } else {
-                    // 强制在当前字符前换行
-                    String line = currentLine.substring(0, currentLine.length() - 1);
-                    lines.add(line);
-                    indentLevels.add(currentIndent);
-
-                    currentLine = new StringBuilder(String.valueOf(c));
-                }
-            }
-        }
-
-        // 添加最后一行
-        if (!currentLine.isEmpty()) {
-            lines.add(currentLine.toString());
-            indentLevels.add(currentIndent);
-        }
-
-        // 如果没有行，至少添加一个空行
-        if (lines.isEmpty()) {
-            lines.add("");
-            indentLevels.add(0);
-        }
-
+    /** 配置预览即时重排：不调用 setValue，避免清空用户编辑历史与选区。 */
+    public void refreshFormatting() {
+        indentation = Config.INDENTATION.get();
+        formatText(this.value);
+        setCursorPosition(this.cursorPos);
+        setHighlightPos(this.highlightPos);
+        onValueChange(this.value);
+        formatColoredText();
     }
 
     private void formatColoredText() {
@@ -547,29 +474,6 @@ public class ModMultiLineEditBox extends EditBox {
             formattedLines.add(formattedLine);
             charCount += line.length();
         }
-    }
-
-    /**
-     * 找到合适的换行点（空格、标点等）
-     */
-    private int findBreakPoint(String line) {
-        // 从后往前找，优先使用最近的换行点
-        for (int i = line.length() - 1; i > 0; i--) {
-            char c = line.charAt(i);
-            if (c == ' ') {
-                return i; // 在空格处换行
-            } else if (c == ',' || c == '.') {
-                return i + 1; // 在标点符号后换行
-            } else if (c == '(' || c == ')' || c == '{' || c == '}' || c == '[' || c == ']') {
-                return i; // 在括号处换行
-            } else if (i > 1 && (c == '=' || c == '+' || c == '-' || c == '*' || c == '/')) {
-                // 在运算符前换行
-                return i;
-            }
-        }
-
-        // 如果没有找到合适位置，尝试在80%长度处强制换行
-        return line.length() * 4 / 5;
     }
 
     @Override
