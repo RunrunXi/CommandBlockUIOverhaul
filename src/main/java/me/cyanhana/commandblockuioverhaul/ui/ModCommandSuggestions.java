@@ -1,7 +1,6 @@
 package me.cyanhana.commandblockuioverhaul.ui;
 
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.Message;
@@ -37,20 +36,21 @@ import net.neoforged.api.distmarker.OnlyIn;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 @OnlyIn(Dist.CLIENT)
 public class ModCommandSuggestions {
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("(\\s+)");
     private static final Style UNPARSED_STYLE = Style.EMPTY.withColor(ChatFormatting.RED);
-    private static final Style LITERAL_STYLE = Style.EMPTY.withColor(ChatFormatting.GRAY);
-    private static final List<Style> ARGUMENT_STYLES = Stream.of(ChatFormatting.AQUA, ChatFormatting.YELLOW, ChatFormatting.GREEN, ChatFormatting.LIGHT_PURPLE, ChatFormatting.GOLD).map(Style.EMPTY::withColor).collect(ImmutableList.toImmutableList());
+    private String highlightedText;
+    private ParseResults<SharedSuggestionProvider> highlightedParse;
+    private Style[] highlightedStyles = new Style[0];
     final Minecraft minecraft;
     private final Screen screen;
     final ModMultiLineEditBox input;
@@ -303,7 +303,24 @@ public class ModCommandSuggestions {
     }
 
     private FormattedCharSequence formatChat(String pCommand, int pMaxLength) {
-        return this.currentParse != null ? formatText(this.currentParse, pCommand, pMaxLength) : FormattedCharSequence.forward(pCommand, Style.EMPTY);
+        // pCommand 是一条显示行；pMaxLength 实际是该行在原始命令中的起始偏移。
+        // 整条命令共享着色缓存，避免每一行都重新扫描全部括号和命令上下文。
+        String text = this.input.getValue();
+        if (!text.equals(this.highlightedText) || this.highlightedParse != this.currentParse) {
+            this.highlightedText = text;
+            this.highlightedParse = this.currentParse;
+            this.highlightedStyles = createHierarchyStyles(text, this.currentParse);
+        }
+        List<FormattedCharSequence> spans = Lists.newArrayList();
+        // 按原始偏移取出当前行的颜色，将相邻同色字符合并成一个渲染片段。
+        for (int start = 0; start < pCommand.length();) {
+            Style style = this.highlightedStyles[pMaxLength + start];
+            int end = start + 1;
+            while (end < pCommand.length() && style.equals(this.highlightedStyles[pMaxLength + end])) ++end;
+            spans.add(FormattedCharSequence.forward(pCommand.substring(start, end), style));
+            start = end;
+        }
+        return FormattedCharSequence.composite(spans);
     }
 
     @Nullable
@@ -311,43 +328,34 @@ public class ModCommandSuggestions {
         return pSuggestionText.startsWith(pInputText) ? pSuggestionText.substring(pInputText.length()) : null;
     }
 
-    private static FormattedCharSequence formatText(ParseResults<SharedSuggestionProvider> pProvider, String pCommand, int pMaxLength) {
-        List<FormattedCharSequence> list = Lists.newArrayList();
-        int i = 0;
-        int j = -1;
-        CommandContextBuilder<SharedSuggestionProvider> commandcontextbuilder = pProvider.getContext().getLastChild();
-
-        for(ParsedArgument<SharedSuggestionProvider, ?> parsedargument : commandcontextbuilder.getArguments().values()) {
-            ++j;
-            if (j >= ARGUMENT_STYLES.size()) {
-                j = 0;
-            }
-
-            int k = Math.max(parsedargument.getRange().getStart() - pMaxLength, 0);
-            if (k >= pCommand.length()) {
-                break;
-            }
-
-            int l = Math.min(parsedargument.getRange().getEnd() - pMaxLength, pCommand.length());
-            if (l > 0) {
-                list.add(FormattedCharSequence.forward(pCommand.substring(i, k), LITERAL_STYLE));
-                list.add(FormattedCharSequence.forward(pCommand.substring(k, l), ARGUMENT_STYLES.get(j)));
-                i = l;
+    private static Style[] createHierarchyStyles(String text, @Nullable ParseResults<SharedSuggestionProvider> parse) {
+        int[] baseLevels = new int[text.length()];
+        if (parse != null) {
+            // 沿 Brigadier 的子上下文遍历：execute ... run ... 等重定向增加命令层级。
+            // 层级来自解析结果，不通过搜索字符串中的 "run" 猜测。
+            int depth = 0;
+            for (CommandContextBuilder<SharedSuggestionProvider> context = parse.getContext();
+                 context != null; context = context.getChild(), ++depth) {
+                int start = Mth.clamp(context.getRange().getStart(), 0, text.length());
+                Arrays.fill(baseLevels, start, text.length(), depth);
+                // 当前命令的参数比字面关键字深一层，子命令随后覆盖自己的范围。
+                for (ParsedArgument<SharedSuggestionProvider, ?> argument : context.getArguments().values()) {
+                    int from = Mth.clamp(argument.getRange().getStart(), 0, text.length());
+                    int to = Mth.clamp(argument.getRange().getEnd(), from, text.length());
+                    Arrays.fill(baseLevels, from, to, depth + 1);
+                }
             }
         }
-
-        if (pProvider.getReader().canRead()) {
-            int i1 = Math.max(pProvider.getReader().getCursor() - pMaxLength, 0);
-            if (i1 < pCommand.length()) {
-                int j1 = Math.min(i1 + pProvider.getReader().getRemainingLength(), pCommand.length());
-                list.add(FormattedCharSequence.forward(pCommand.substring(i, i1), LITERAL_STYLE));
-                list.add(FormattedCharSequence.forward(pCommand.substring(i1, j1), UNPARSED_STYLE));
-                i = j1;
-            }
+        int[] levels = CommandHierarchyColors.levels(text, baseLevels);
+        Style[] styles = new Style[text.length()];
+        for (int i = 0; i < styles.length; ++i) {
+            styles[i] = Style.EMPTY.withColor(CommandHierarchyColors.color(levels[i]));
         }
-
-        list.add(FormattedCharSequence.forward(pCommand.substring(i), LITERAL_STYLE));
-        return FormattedCharSequence.composite(list);
+        if (parse != null && parse.getReader().canRead()) {
+            // 保留原有错误反馈：解析器未消费的文本优先显示为红色，覆盖层级配色。
+            Arrays.fill(styles, Mth.clamp(parse.getReader().getCursor(), 0, styles.length), styles.length, UNPARSED_STYLE);
+        }
+        return styles;
     }
 
     public void render(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY) {
