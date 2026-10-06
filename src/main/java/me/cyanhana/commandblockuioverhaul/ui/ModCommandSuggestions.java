@@ -51,6 +51,7 @@ public class ModCommandSuggestions {
     private static final Style UNPARSED_STYLE = Style.EMPTY.withColor(ChatFormatting.RED);
     private String highlightedText;
     private Config.ColorScheme highlightedScheme;
+    private boolean highlightedFormatStrings;
     private ParseResults<SharedSuggestionProvider> highlightedParse;
     private Style[] highlightedStyles = new Style[0];
     final Minecraft minecraft;
@@ -326,9 +327,11 @@ public class ModCommandSuggestions {
         // 整条命令共享着色缓存，避免每一行都重新扫描全部括号和命令上下文。
         String text = this.input.getValue();
         if (!text.equals(this.highlightedText) || this.highlightedParse != this.currentParse
-                || this.highlightedScheme != Config.COLOR_SCHEME.get()) {
+                || this.highlightedScheme != Config.COLOR_SCHEME.get()
+                || this.highlightedFormatStrings != Config.FORMAT_STRINGS.get()) {
             this.highlightedText = text;
             this.highlightedScheme = Config.COLOR_SCHEME.get();
+            this.highlightedFormatStrings = Config.FORMAT_STRINGS.get();
             this.highlightedParse = this.currentParse;
             this.highlightedStyles = createHierarchyStyles(text, this.currentParse);
         }
@@ -367,7 +370,7 @@ public class ModCommandSuggestions {
                 }
             }
         }
-        int[] levels = CommandHierarchyColors.levels(text, baseLevels);
+        int[] levels = CommandHierarchyColors.levels(text, baseLevels, Config.FORMAT_STRINGS.get());
         Style[] styles = new Style[text.length()];
         for (int i = 0; i < styles.length; ++i) {
             styles[i] = Style.EMPTY.withColor(CommandHierarchyColors.color(levels[i]));

@@ -47,6 +47,10 @@ public final class CommandHierarchyColors {
     }
 
     static int[] levels(String text, int[] baseLevels) {
+        return levels(text, baseLevels, false);
+    }
+
+    static int[] levels(String text, int[] baseLevels, boolean formatStrings) {
         // baseLevels 来自命令解析器；此处再叠加 JSON/SNBT、选择器等括号嵌套深度。
         // 数组下标与原始字符串的 UTF-16 下标一致，显示换行不会重新计算层级。
         int[] result = new int[text.length()];
@@ -55,15 +59,16 @@ public final class CommandHierarchyColors {
         boolean escaped = false;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (quote != 0) {
-                // 引号内的括号只是字符串内容。逐个处理反斜杠，正确区分 \" 与 \\"。
+            if (quote != 0 && !formatStrings) {
+                // 关闭字符串格式化时，引号内的括号不参与层级；反斜杠逐个处理。
                 result[i] = baseLevels[i] + brackets.size();
                 if (escaped) escaped = false;
                 else if (c == '\\') escaped = true;
                 else if (c == quote) quote = 0;
                 continue;
             }
-            if (c == '\'' || c == '"') quote = c;
+            if (!formatStrings && (c == '\'' || c == '"')) quote = c;
+            // 开启字符串格式化时，字符串内的括号与外层一样参与层级计算，和断行规则一致。
             // 左括号先入栈再着色；匹配的右括号先着色再出栈，使一对括号颜色相同。
             if (c == '{' || c == '[') brackets.push(c);
             result[i] = baseLevels[i] + brackets.size();
